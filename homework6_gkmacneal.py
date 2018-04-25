@@ -2,8 +2,7 @@
 
 import numpy as np
 #np.set_printoptions(threshold=np.nan)
-import matplotlib.patches as patches
-import matplotlib.pyplot as plt
+import math
 
 def fPC (y, yhat):
 	# find the correct guesses
@@ -15,18 +14,33 @@ def fPC (y, yhat):
 def fCE(y, yhat):
 	labels = np.argmax(y, 1)
 	m = np.shape(labels)[0]
-	return np.sum(-1.*np.log(yhat[range(m), labels]) / m
+	return np.sum(-1.*np.log(yhat[range(m), labels])) / m
 
-# X: m x n
-# W: m x c
-# z: c x n
-# y: n x c
-def neuralNetwork (trainingNumbers, trainingLabels, validNumbers, validLabels, hSize, rate, nn, epochs, regularization):
+def softmax(z):
+	return (np.exp(z) / np.sum(np.exp(z), 0)).T
+
+def relu(z):
+	return z * np.greater(z, 0).astype(int)
+
+def reluPrime(z):
+	return np.greater(z, 0).astype(int)
+
+def neuralNetwork (trainingNumbers, trainingLabels, validNumbers, validLabels, hSize, rate, nn, epochs, alpha):
+	print "hidden layer size:", hSize
+	print "rate:", rate
+	print "batch size:", nn
+	print "epochs:", epochs
+	print "regularization strength:", alpha
 	n = np.shape(trainingNumbers)[1]
 	m = np.shape(trainingNumbers)[0]
 	c = np.shape(trainingLabels)[1]
-	W1 = np.random.normal(0.0, 1./sqrt(c), (m, c))
-	W2 = np.random.normal(0.0, 1./sqrt(c), (hSize, c))
+	print "n:", n
+	print "m:", m
+	print "c:", c
+	W1 = np.random.normal(0.0, 1./math.sqrt(hSize), (m, hSize))
+	W2 = np.random.normal(0.0, 1./math.sqrt(c), (hSize, c))
+	b1 = np.random.normal(0.0, 0.1, (hSize,))
+	b2 = np.random.normal(0.0, 0.1, (c,))
 	trainingNumbers = trainingNumbers.T
 	randomState = np.random.get_state()
 	np.random.shuffle(trainingNumbers)
@@ -35,38 +49,59 @@ def neuralNetwork (trainingNumbers, trainingLabels, validNumbers, validLabels, h
 	np.random.shuffle(trainingLabels)
 	for i in range(epochs):
 		for j in range(n / nn):
-			z = np.dot(w.T, trainingNumbers[:, j*nn:(j+1)*nn])
-			yhat = (np.exp(z) / np.sum(np.exp(z), 0)).T
-			gradient = (1./nn)*np.dot(trainingNumbers[:, j*nn:(j+1)*nn], (yhat - trainingLabels[j*nn:(j+1)*nn]))
-			w = w - (rate * gradient)
+			# z1 should take it from 784(m) by nn to hSize by nn
+			#print np.shape(trainingNumbers[:, j*nn:(j+1)*nn])
+			z1 = (np.dot(W1.T, trainingNumbers[:, j*nn:(j+1)*nn]).T + b1).T
+			h1 = relu(z1)
+			#print np.shape(h1)
+			# z2 should take it from hSize by nn to 10(c) by nn
+			z2 = np.dot(W2.T, h1).T + b2
+			yhat = softmax(z2)
+			#print np.shape(yhat)
+			diff = yhat - trainingLabels[j*nn:(j+1)*nn]
+			g = ((yhat.T - trainingLabels[j*nn:(j+1)*nn]).dot(W2)) * reluPrime(z1)
+			gb1 = g.T
+			gW1 = (trainingNumbers[:, j*nn:(j+1)*nn]).dot(g)
+			gb2 = diff
+			gW2 = h1.dot(diff)
+			b1 = b1 - (rate * gb1)
+			W1 = W1 - (rate * gW1)
+			b2 = b2 - (rate * gb2)
+			W2 = W2 - (rate * gW2)
 		print i+1
-		if ((epochs - i) <= 20):
-			z = np.dot(w.T, trainingNumbers)
-			yhatTrain = (np.exp(z) / np.sum(np.exp(z), 0)).T
-			print "training cross entropy loss:", fCE(trainingLabels, yhatTrain)
 	print
-	zValid = np.dot(w.T, validNumbers)
-	yhatValid = (np.exp(zValid) / np.sum(np.exp(zValid), 0)).T
-	print "validation cross entropy loss:", fCE(validLabels, yhatValid)
+	z1 = (np.dot(W1.T, trainingNumbers).T + b1).T
+	h1 = relu(z1)
+	z2 = (np.dot(W2.T, h1).T + b2).T
+	yhatTrain = softmax(z2)
+	tCEloss = fCE(trainingLabels, yhatTrain)
+	tPC = fPC(trainingLabels, yhatTrain)
+	print "training cross entropy loss:", tCEloss
+	print "training percent correct:", tPC, "%"
+	print
+	z1 = np.dot(W1.T, validNumbers) + b1
+	h1 = relu(z1)
+	z2 = np.dot(W2.T, h1) + b2
+	yhatValid = softmax(z2)
+	vCEloss = fCE(validLabels, yhatValid)
+	vPC = fPC(validLabels, yhatValid)
+	print "validation cross entropy loss:", vCEloss
+	print "validation percent correct:", vPC, "%"
+	return vCEloss
 
 def loadData (which):
 	numbers = np.load("mnist_{}_images.npy".format(which)).T
 	labels = np.load("mnist_{}_labels.npy".format(which))
 	return numbers, labels
 
-	
+
 if __name__ == "__main__":
 	print
-	print "--------------------------------------------------------------"
-	print "MACHINE LEARNING ALGORITHM TO READ HANDWRITTEN ARABIC NUMERALS"
-	print "--------------------------------------------------------------"
+	print "-------------------------------------------------------------"
+	print " NEURAL NETWORK TRAINING TO READ HANDWRITTEN ARABIC NUMERALS "
+	print "-------------------------------------------------------------"
 	print
 	testingNumbers, testingLabels = loadData("test")
 	trainingNumbers, trainingLabels = loadData("train")
-	validNumbers, validLabels = loadData("vailidation")
-	neuralNetwork(trainingNumbers, trainingLabels, validNumbers, validLabels, 50, 0.01, 64, 50, )
-
-
-
-
-
+	validNumbers, validLabels = loadData("validation")
+	neuralNetwork(trainingNumbers, trainingLabels, validNumbers, validLabels, 50, 0.01, 64, 50, 0)

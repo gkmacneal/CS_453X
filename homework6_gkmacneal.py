@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import numpy as np
-#np.set_printoptions(threshold=np.nan)
+np.set_printoptions(threshold=np.nan)
 import math
 
 def fPC (y, yhat):
@@ -25,12 +25,12 @@ def relu(z):
 def reluPrime(z):
 	return np.greater(z, 0).astype(int)
 
-def neuralNetwork (trainingNumbers, trainingLabels, validNumbers, validLabels, hSize, rate, nn, epochs, alpha):
+def neuralNetwork (trainingNumbers, trainingLabels, validNumbers, validLabels, hSize, rate, nn, epochs, alpha1, alpha2, beta1, beta2):
 	print "hidden layer size:", hSize
 	print "rate:", rate
 	print "batch size:", nn
 	print "epochs:", epochs
-	print "regularization strength:", alpha
+	print "regularization strengths:", alpha1, alpha2, beta1, beta2
 	n = np.shape(trainingNumbers)[1]
 	m = np.shape(trainingNumbers)[0]
 	c = np.shape(trainingLabels)[1]
@@ -38,6 +38,7 @@ def neuralNetwork (trainingNumbers, trainingLabels, validNumbers, validLabels, h
 	print "m:", m
 	print "c:", c
 	W1 = np.random.normal(0.0, 1./math.sqrt(hSize), (m, hSize))
+	print W1
 	W2 = np.random.normal(0.0, 1./math.sqrt(c), (hSize, c))
 	b1 = np.random.normal(0.0, 0.1, (hSize,))
 	b2 = np.random.normal(0.0, 0.1, (c,))
@@ -50,25 +51,34 @@ def neuralNetwork (trainingNumbers, trainingLabels, validNumbers, validLabels, h
 	for i in range(epochs):
 		for j in range(n / nn):
 			# z1 should take it from 784(m) by nn to hSize by nn
-			#print np.shape(trainingNumbers[:, j*nn:(j+1)*nn])
 			z1 = (np.dot(W1.T, trainingNumbers[:, j*nn:(j+1)*nn]).T + b1).T
 			h1 = relu(z1)
-			#print np.shape(h1)
 			# z2 should take it from hSize by nn to 10(c) by nn
 			z2 = np.dot(W2.T, h1).T + b2
 			yhat = softmax(z2)
-			#print np.shape(yhat)
-			diff = yhat - trainingLabels[j*nn:(j+1)*nn]
-			g = ((yhat.T - trainingLabels[j*nn:(j+1)*nn]).dot(W2)) * reluPrime(z1)
-			gb1 = g.T
-			gW1 = (trainingNumbers[:, j*nn:(j+1)*nn]).dot(g)
-			gb2 = diff
-			gW2 = h1.dot(diff)
+			diff = yhat.T - trainingLabels[j*nn:(j+1)*nn]
+			g = diff.dot(W2.T) * reluPrime(z1.T)
+			gb1 = np.sum(g, 0)
+			gW1 = (trainingNumbers[:, j*nn:(j+1)*nn]).dot(g) + (alpha1 * W1) + (beta1 * np.sign(W1))
+			gb2 = np.sum(diff)
+			gW2 = h1.dot(diff) + (alpha2 * W2) + (beta2 * np.sign(W2))
 			b1 = b1 - (rate * gb1)
 			W1 = W1 - (rate * gW1)
 			b2 = b2 - (rate * gb2)
 			W2 = W2 - (rate * gW2)
 		print i+1
+		print W1
+		"""
+		print
+		z1 = (np.dot(W1.T, trainingNumbers).T + b1).T
+		h1 = relu(z1)
+		z2 = (np.dot(W2.T, h1).T + b2).T
+		yhatTrain = softmax(z2)
+		tCEloss = fCE(trainingLabels, yhatTrain)
+		tPC = fPC(trainingLabels, yhatTrain)
+		print "training cross entropy loss:", tCEloss
+		print "training percent correct:", tPC, "%"
+		"""
 	print
 	z1 = (np.dot(W1.T, trainingNumbers).T + b1).T
 	h1 = relu(z1)
@@ -79,9 +89,9 @@ def neuralNetwork (trainingNumbers, trainingLabels, validNumbers, validLabels, h
 	print "training cross entropy loss:", tCEloss
 	print "training percent correct:", tPC, "%"
 	print
-	z1 = np.dot(W1.T, validNumbers) + b1
+	z1 = (np.dot(W1.T, validNumbers).T + b1).T
 	h1 = relu(z1)
-	z2 = np.dot(W2.T, h1) + b2
+	z2 = (np.dot(W2.T, h1).T + b2).T
 	yhatValid = softmax(z2)
 	vCEloss = fCE(validLabels, yhatValid)
 	vPC = fPC(validLabels, yhatValid)
@@ -104,4 +114,4 @@ if __name__ == "__main__":
 	testingNumbers, testingLabels = loadData("test")
 	trainingNumbers, trainingLabels = loadData("train")
 	validNumbers, validLabels = loadData("validation")
-	neuralNetwork(trainingNumbers, trainingLabels, validNumbers, validLabels, 50, 0.01, 64, 50, 0)
+	neuralNetwork(trainingNumbers, trainingLabels, validNumbers, validLabels, 50, 0.0001, 64, 50, 50, 50, 50, 50)
